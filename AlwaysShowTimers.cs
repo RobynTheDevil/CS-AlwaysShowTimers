@@ -13,12 +13,11 @@ using HarmonyLib;
 public class AlwaysShowTimers : MonoBehaviour
 {
     public static PatchTracker showTimers {get; private set;}
-    public static SettingTrackerUpdate whenUpdated = WhenSettingUpdated;
 
     public void Start() {
         try
         {
-            AlwaysShowTimers.showTimers = new PatchTracker("AlwaysShowTimers", new MainPatch(), AlwaysShowTimers.whenUpdated);
+            AlwaysShowTimers.showTimers = new PatchTracker("AlwaysShowTimers", new MainPatch(), WhenSettingUpdated);
         }
         catch (Exception ex)
         {
@@ -34,17 +33,16 @@ public class AlwaysShowTimers : MonoBehaviour
         NoonUtility.Log("AlwaysShowTimers: Initialised");
 	}
 
-    public static IEnumerable<ElementStack> GetCards() {
+    public static IEnumerable<Token> GetTokens() {
         return Watchman.Get<HornedAxe>().GetExteriorSpheres()
             .Where<Sphere>((Func<Sphere, bool>) (x => (double) x.TokenHeartbeatIntervalMultiplier > 0.0))
             .SelectMany<Sphere, Token>((Func<Sphere, IEnumerable<Token>>) (x => x.GetTokens()))
-            .Select<Token, ITokenPayload>((Func<Token, ITokenPayload>) (x => x.Payload))
-            .OfType<ElementStack>()
-            .Where<ElementStack>((Func<ElementStack, bool>) (x => (x.Decays)));
+            .Where<Token>((Func<Token, bool>) (x => x.Payload is ElementStack && ((ElementStack)x.Payload).Decays));
     }
 
-    public static void WhenSettingUpdated(object _) {
-        if (AlwaysShowTimers.showTimers.current) {
+    public static void WhenSettingUpdated(SettingTracker<bool> tracker) {
+        NoonUtility.Log(string.Format("AlwaysShowTimers: Setting Updated {0}", tracker.current));
+        if (tracker.current) {
             AlwaysShowTimers.Enable();
         } else {
             AlwaysShowTimers.Disable();
@@ -52,18 +50,18 @@ public class AlwaysShowTimers : MonoBehaviour
     }
 
     public static void Enable() {
-        IEnumerable<ElementStack> cards = AlwaysShowTimers.GetCards();
-        foreach (ElementStack card in cards) {
-            Traverse.Create(card).Field("_alwaysDisplayDecayView").SetValue(true);
-            Traverse.Create(card).Field("_token").Field("_manifestation").Method("ShowDecayView").GetValue();
+        IEnumerable<Token> tokens = AlwaysShowTimers.GetTokens();
+        foreach (Token token in tokens) {
+            Traverse.Create(token).Field("_manifestation").Field("_alwaysDisplayDecayView").SetValue(true);
+            Traverse.Create(token).Field("_manifestation").Method("ShowDecayView").GetValue();
         }
     }
 
     public static void Disable() {
-        IEnumerable<ElementStack> cards = AlwaysShowTimers.GetCards();
-        foreach (ElementStack card in cards) {
-            Traverse.Create(card).Field("_alwaysDisplayDecayView").SetValue(false);
-            Traverse.Create(card).Field("_token").Field("_manifestation").Method("HideDecayView").GetValue();
+        IEnumerable<Token> tokens = AlwaysShowTimers.GetTokens();
+        foreach (Token token in tokens) {
+            Traverse.Create(token).Field("_manifestation").Field("_alwaysDisplayDecayView").SetValue(false);
+            Traverse.Create(token).Field("_manifestation").Method("HideDecayView").GetValue();
         }
     }
 }
