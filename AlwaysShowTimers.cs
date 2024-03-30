@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
+using UnityEngine.Events;
+using UnityEngine.SceneManagement;
 using SecretHistories;
 using SecretHistories.UI;
 using SecretHistories.Manifestations;
@@ -12,12 +14,22 @@ using HarmonyLib;
 
 public class AlwaysShowTimers : MonoBehaviour
 {
+    public static bool started = false;
     public static PatchTracker showTimers {get; private set;}
 
-    public void Start() {
+    public void Start() => SceneManager.sceneLoaded += Load;
+
+    public void OnDestroy() => SceneManager.sceneLoaded -= Load;
+
+    public static void Load(Scene scene, LoadSceneMode mode) {
         try
         {
-            AlwaysShowTimers.showTimers = new PatchTracker("AlwaysShowTimers", new MainPatch(), WhenSettingUpdated);
+            if (!started) {
+                showTimers = new PatchTracker("AlwaysShowTimers", new MainPatch(), WhenSettingUpdated);
+                started = true;
+            } else {
+                showTimers.Subscribe();
+            }
         }
         catch (Exception ex)
         {
@@ -43,14 +55,14 @@ public class AlwaysShowTimers : MonoBehaviour
     public static void WhenSettingUpdated(SettingTracker<bool> tracker) {
         NoonUtility.Log(string.Format("AlwaysShowTimers: Setting Updated {0}", tracker.current));
         if (tracker.current) {
-            AlwaysShowTimers.Enable();
+            Enable();
         } else {
-            AlwaysShowTimers.Disable();
+            Disable();
         }
     }
 
     public static void Enable() {
-        IEnumerable<Token> tokens = AlwaysShowTimers.GetTokens();
+        IEnumerable<Token> tokens = GetTokens();
         foreach (Token token in tokens) {
             Traverse.Create(token).Field("_manifestation").Field("_alwaysDisplayDecayView").SetValue(true);
             Traverse.Create(token).Field("_manifestation").Method("ShowDecayView").GetValue();
@@ -58,7 +70,7 @@ public class AlwaysShowTimers : MonoBehaviour
     }
 
     public static void Disable() {
-        IEnumerable<Token> tokens = AlwaysShowTimers.GetTokens();
+        IEnumerable<Token> tokens = GetTokens();
         foreach (Token token in tokens) {
             Traverse.Create(token).Field("_manifestation").Field("_alwaysDisplayDecayView").SetValue(false);
             Traverse.Create(token).Field("_manifestation").Method("HideDecayView").GetValue();
